@@ -121,13 +121,19 @@ router.get('/debug', requireAuth, async (req, res) => {
   }, { basic, email: user.email, password: user.password })
 
   const result = await page.evaluate(async () => {
-    const res = await fetch('https://member.peoplesfitness.de/nox/public/v3/facility-booking/categories?facilityId=1253413940', {
+  const now = new Date()
+  const from = now.toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
+  const to = new Date(now.getTime() + 8 * 86400000).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
+  const res = await fetch(
+    `https://member.peoplesfitness.de/nox/v1/studios/cGVvcGxlcy1neW06MTI1MzQxMzk0MA==/courses?from=${from}&to=${to}`,
+    {
       headers: { 'X-Tenant': 'peoples-gym', 'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C', 'X-Nox-Client-Type': 'WEB' },
       credentials: 'include',
-    })
-    const text = await res.text()
-    return { status: res.status, body: text.slice(0, 500) }
-  })
+    }
+  )
+  const text = await res.text()
+  return { status: res.status, body: text.slice(0, 1000) }
+})
 
   await browser.close()
   res.json(result)
