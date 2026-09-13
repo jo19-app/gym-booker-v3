@@ -19,12 +19,21 @@ router.post('/auth/login', async (req, res) => {
 await page.waitForTimeout(3000)
 
     const loginResult = await page.evaluate(async ({ email, password }) => {
-      const res = await fetch('https://member.peoplesfitness.de/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tenant': 'peoples-gym', 'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C', 'X-Nox-Client-Type': 'WEB' },
-        credentials: 'include',
-        body: JSON.stringify({ username: email, password }),
-      })
+      const basic = btoa(email + ':' + password)
+const res = await fetch('https://member.peoplesfitness.de/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Basic ' + basic,
+    'X-Tenant': 'peoples-gym',
+    'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C',
+    'X-Nox-Client-Type': 'WEB',
+    'X-Ms-Web-Context': '/studio/cGVvcGxlcy1neW06MTI1MzQxMzk0MA%3D%3D',
+    'X-Nox-Web-Context': 'v=1',
+  },
+  credentials: 'include',
+  body: JSON.stringify({ username: email, password }),
+})
       const body = await res.text()
 return { ok: res.ok, status: res.status, body }
     }, { email, password })
