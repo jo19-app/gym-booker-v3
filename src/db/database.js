@@ -1,43 +1,45 @@
-import Database from 'better-sqlite3'
+import { JSONFilePreset } from 'lowdb/node'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { mkdirSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const DB_PATH = process.env.DB_PATH || join(__dirname, '../../data/gym-booker.db')
+const DATA_DIR = process.env.DATA_DIR || join(__dirname, '../../data')
+mkdirSync(DATA_DIR, { recursive: true })
 
-// Ensure data directory exists
-mkdirSync(dirname(DB_PATH), { recursive: true })
+const defaultData = { users: [], bookings: [] }
+export const db = await JSONFilePreset(join(DATA_DIR, 'db.json'), defaultData)
 
-const db = new Database(DB_PATH)
+export function getUser(email) {
+  return db.data.users.find(u => u.email === email)
+}
 
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL')
+export function upsertUser(user) {
+  const idx = db.data.users.findIndex(u => u.email === user.email)
+  if (idx >= 0) db.data.users[idx] = user
+  else db.data.users.push(user)
+  db.write()
+}
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
+export function getUserBookings(userId) {
+  return db.data.bookings.filter(b => b.userId === userId)
+}
 
-  CREATE TABLE IF NOT EXISTS bookings (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    course_name TEXT NOT NULL,
-    weekday TEXT,
-    time TEXT NOT NULL,
-    frequency TEXT NOT NULL DEFAULT 'weekly',
-    date TEXT,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    last_attempt TEXT,
-    last_result TEXT,
-    last_booked TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`)
+export function addBooking(booking) {
+  db.data.bookings.push(booking)
+  db.write()
+}
 
-export default db
+export function updateBooking(id, updates) {
+  const idx = db.data.bookings.findIndex(b => b.id === id)
+  if (idx >= 0) { db.data.bookings[idx] = { ...db.data.bookings[idx], ...updates }; db.write() }
+}
+
+export function deleteBooking(id) {
+  db.data.bookings = db.data.bookings.filter(b => b.id !== id)
+  db.write()
+}
+
+export function getAllUsers() {
+  return db.data.users
+}
