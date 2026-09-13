@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gym Booker · Peoples Fitness</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0c10;--surface:#15151c;--surface2:#1e1e28;--surface3:#272733;
+  --border:#2c2c3a;--accent:#a78bfa;--accent2:#34d399;--danger:#f87171;
+  --warn:#fbbf24;--text:#f1f5f9;--muted:#64748b;--muted2:#94a3b8;
+  --radius:12px;--font:system-ui,-apple-system,sans-serif;
+}
+html{font-size:15px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.55;min-height:100vh}
+button{cursor:pointer;font-family:var(--font)}
+input,select{font-family:var(--font);background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:10px 14px;font-size:14px;width:100%;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+::placeholder{color:var(--muted)}
+
+/* Login */
+#login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(167,139,250,.12),transparent)}
+.login-box{width:100%;max-width:400px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px}
+.login-logo{text-align:center;margin-bottom:36px}
+.login-logo .emoji{font-size:36px;display:block;margin-bottom:10px}
+.login-logo h1{font-size:24px;font-weight:700;letter-spacing:-.03em}
+.login-logo p{color:var(--muted2);font-size:14px;margin-top:6px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;color:var(--muted2);margin-bottom:6px}
+.error-box{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;color:var(--danger);font-size:13px;margin-bottom:14px}
+.btn-primary{background:var(--accent);border:none;border-radius:8px;color:#0f0a1e;font-weight:700;font-size:15px;padding:12px;width:100%;transition:opacity .15s}
+.btn-primary:disabled{opacity:.5}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted2);font-size:13px;padding:6px 14px}
+
+/* Dashboard */
+#dashboard{display:none;max-width:720px;margin:0 auto;padding:0 16px 80px}
+.nav{position:sticky;top:0;z-index:10;background:rgba(12,12,16,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:14px 0;margin-bottom:28px}
+.nav-left{display:flex;align-items:center;gap:8px}
+.nav-left span{font-weight:700;font-size:16px;letter-spacing:-.02em}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-email{color:var(--muted);font-size:13px}
+.tabs{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:28px;gap:2px}
+.tab{flex:1;padding:9px 0;border-radius:8px;border:none;font-size:13px;font-weight:600;transition:all .15s;background:transparent;color:var(--muted)}
+.tab.active{background:var(--surface2);color:var(--text)}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:all .15s;margin-bottom:8px}
+.card.booked{background:rgba(52,211,153,.06);border-color:rgba(52,211,153,.25)}
+.card.selecting{background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.3)}
+.card-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.card-name{font-weight:600;font-size:15px;margin-bottom:4px}
+.card-sub{color:var(--muted2);font-size:13px}
+.card-meta{margin-top:4px;font-size:12px}
+.tag{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px}
+.tag-weekly{background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--accent)}
+.tag-once{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);color:var(--warn)}
+.tag-scheduled{background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);color:var(--accent2)}
+.status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px}
+.card-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.toggle{background:var(--surface3);border:none;border-radius:20px;width:40px;height:22px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--accent2)}
+.toggle-dot{position:absolute;top:3px;left:2px;width:16px;height:16px;border-radius:50%;background:white;transition:left .2s}
+.toggle.on .toggle-dot{left:22px}
+.btn-delete{background:transparent;border:none;color:var(--muted);font-size:18px;padding:2px 6px;line-height:1}
+.select-btn{background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--muted2);font-size:13px;padding:6px 14px;white-space:nowrap}
+.book-btn{background:var(--accent);border:none;border-radius:7px;color:#0f0a1e;font-weight:700;font-size:13px;padding:7px 14px;white-space:nowrap}
+.freq-select{width:140px;padding:6px 10px;font-size:13px}
+.cancel-btn{background:transparent;border:none;color:var(--muted);font-size:16px;padding:4px 6px}
+
+/* Empty state */
+.empty{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:48px;text-align:center;color:var(--muted);font-size:14px}
+.empty p{margin-top:8px;color:var(--muted2)}
+
+/* Section header */
+.section-header{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+
+/* Day header */
+.day-header{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px}
+
+/* Info box */
+.info-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-top:28px;color:var(--muted2);font-size:13px;line-height:1.7}
+
+/* Spinner */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:white;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Load schedule button */
+.load-btn-wrap{text-align:center;padding:40px 20px}
+.load-btn{background:var(--accent);border:none;border-radius:8px;color:#0f0a1e;font-weight:700;font-size:15px;padding:12px 28px}
+</style>
+</head>
+<body>
+
+<!-- Login Page -->
+<div id="login-page">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="emoji">🏋️</span>
+      <h1>Gym Booker</h1>
+      <p>Peoples Fitness Bad Homburg</p>
+    </div>
+    <div class="login-card">
+      <div class="field">
+        <label>Gym Email</label>
+        <input type="email" id="login-email" placeholder="deine@email.de">
+      </div>
+      <div class="field">
+        <label>Gym Passwort</label>
+        <input type="password" id="login-password" placeholder="••••••••">
+      </div>
+      <div id="login-error" class="error-box" style="display:none"></div>
+      <button class="btn-primary" id="login-btn" onclick="login()">Einloggen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <div class="nav">
+    <div class="nav-left">
+      <span>🏋️ Gym Booker</span>
+    </div>
+    <div class="nav-right">
+      <span class="nav-email" id="nav-email"></span>
+      <button class="btn-secondary" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-schedule" onclick="switchTab('schedule')">📅 Stundenplan</button>
+    <button class="tab" id="tab-bookings" onclick="switchTab('bookings')">⚡ Meine Buchungen (<span id="booking-count">0</span>)</button>
+  </div>
+
+  <!-- Schedule Tab -->
+  <div id="pane-schedule">
+    <div id="schedule-load" class="load-btn-wrap">
+      <button class="load-btn" onclick="loadSchedule()">📅 Stundenplan laden</button>
+      <div id="schedule-error" style="color:var(--danger);margin-top:10px;font-size:13px;display:none"></div>
+    </div>
+    <div id="schedule-list" style="display:none"></div>
+  </div>
+
+  <!-- Bookings Tab -->
+  <div id="pane-bookings" style="display:none">
+    <div id="bookings-list"></div>
+  </div>
+</div>
+
+<script>
+let currentTab = 'schedule'
+let bookings = []
+let courses = []
+let selections = {} // courseId -> { frequency }
+let userEmail = ''
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+
+function dayOfWeek(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Europe/Berlin' }).toLowerCase()
+}
+function timeStr(iso) {
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
+}
+function dateStr(iso) {
+  return new Date(iso).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
+}
+function displayTime(iso) {
+  return new Date(iso).toLocaleString('de-DE', { weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin' })
+}
+function groupByDay(courses) {
+  const g = {}
+  for (const c of courses) {
+    const d = dateStr(c.startTime)
+    if (!g[d]) g[d] = []
+    g[d].push(c)
+  }
+  return g
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+async function login() {
+  const email = document.getElementById('login-email').value
+  const password = document.getElementById('login-password').value
+  const btn = document.getElementById('login-btn')
+  const errEl = document.getElementById('login-error')
+
+  errEl.style.display = 'none'
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span>Einloggen…'
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Login fehlgeschlagen'
+      errEl.style.display = 'block'
+      return
+    }
+    showDashboard(email)
+  } catch {
+    errEl.textContent = 'Netzwerkfehler'
+    errEl.style.display = 'block'
+  } finally {
+    btn.disabled = false
+    btn.innerHTML = 'Einloggen'
+  }
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' })
+  document.getElementById('login-page').style.display = 'flex'
+  document.getElementById('dashboard').style.display = 'none'
+}
+
+async function checkAuth() {
+  const res = await fetch('/api/me')
+  if (res.ok) {
+    const user = await res.json()
+    if (user.email) { showDashboard(user.email); return }
+  }
+  document.getElementById('login-page').style.display = 'flex'
+}
+
+function showDashboard(email) {
+  userEmail = email
+  document.getElementById('login-page').style.display = 'none'
+  document.getElementById('dashboard').style.display = 'block'
+  document.getElementById('nav-email').textContent = email
+  loadBookings()
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  currentTab = tab
+  document.getElementById('tab-schedule').classList.toggle('active', tab === 'schedule')
+  document.getElementById('tab-bookings').classList.toggle('active', tab === 'bookings')
+  document.getElementById('pane-schedule').style.display = tab === 'schedule' ? 'block' : 'none'
+  document.getElementById('pane-bookings').style.display = tab === 'bookings' ? 'block' : 'none'
+}
+
+// ── Schedule ──────────────────────────────────────────────────────────────────
+
+async function loadSchedule() {
+  const loadWrap = document.getElementById('schedule-load')
+  const listEl = document.getElementById('schedule-list')
+  const errEl = document.getElementById('schedule-error')
+
+  errEl.style.display = 'none'
+  loadWrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><span class="spinner"></span>Stundenplan wird geladen… (ca. 30 Sekunden)</div>'
+
+  try {
+    const res = await fetch('/api/schedule')
+    const data = await res.json()
+    if (!res.ok) {
+      loadWrap.innerHTML = `<div class="load-btn-wrap"><button class="load-btn" onclick="loadSchedule()">↻ Nochmal versuchen</button><div style="color:var(--danger);margin-top:10px;font-size:13px">${data.error}</div></div>`
+      return
+    }
+    courses = data.courses || []
+    loadWrap.style.display = 'none'
+    listEl.style.display = 'block'
+    renderSchedule()
+  } catch (err) {
+    loadWrap.innerHTML = `<div class="load-btn-wrap"><button class="load-btn" onclick="loadSchedule()">↻ Nochmal versuchen</button><div style="color:var(--danger);margin-top:10px;font-size:13px">Netzwerkfehler</div></div>`
+  }
+}
+
+function renderSchedule() {
+  const listEl = document.getElementById('schedule-list')
+  if (!courses.length) { listEl.innerHTML = '<div class="empty">Keine Kurse gefunden.</div>'; return }
+
+  const grouped = groupByDay(courses)
+  const days = Object.keys(grouped).sort()
+  let html = '<div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn-secondary" onclick="loadSchedule()">↻ Aktualisieren</button></div>'
+
+  for (const day of days) {
+    const label = new Date(day + 'T12:00:00').toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'2-digit' })
+    html += `<div class="day-header">${label}</div>`
+
+    for (const course of grouped[day]) {
+      const isBooked = bookings.some(b =>
+        b.course_name === course.name &&
+        b.weekday === dayOfWeek(course.startTime) &&
+        b.time === timeStr(course.startTime) &&
+        (b.frequency === 'weekly' || b.date === dateStr(course.startTime))
+      )
+      const sel = selections[course.id]
+      const cardClass = isBooked ? 'booked' : sel ? 'selecting' : ''
+      const spots = course.spotsAvailable
+      const spotsColor = spots > 3 ? 'var(--accent2)' : spots > 0 ? 'var(--warn)' : 'var(--danger)'
+
+      html += `<div class="card ${cardClass}">
+        <div class="card-row">
+          <div style="flex:1">
+            <div class="card-name">${course.name}</div>
+            <div class="card-sub">${timeStr(course.startTime)} – ${timeStr(course.endTime)}${course.trainer ? ' · ' + course.trainer : ''}</div>
+            <div class="card-meta">
+              <span style="color:${spotsColor}">${spots > 0 ? spots + ' Plätze frei' : course.waitlistAvailable ? 'Warteliste' : 'Ausgebucht'}</span>
+              ${course.earliestBookingDateTime ? `<span style="color:var(--muted);margin-left:10px">Buchung ab ${displayTime(course.earliestBookingDateTime)}</span>` : ''}
+            </div>
+          </div>
+          <div class="card-actions">
+            ${isBooked
+              ? `<span class="tag tag-scheduled">✓ Geplant</span>`
+              : sel
+                ? `<select class="freq-select" onchange="setFreq('${course.id}', this.value)">
+                     <option value="once">Einmalig</option>
+                     <option value="weekly">Wöchentlich</option>
+                   </select>
+                   <button class="book-btn" onclick="addBooking('${course.id}', '${course.name}', '${dayOfWeek(course.startTime)}', '${timeStr(course.startTime)}', '${dateStr(course.startTime)}')">Hinzufügen</button>
+                   <button class="cancel-btn" onclick="cancelSelect('${course.id}')">×</button>`
+                : `<button class="select-btn" onclick="startSelect('${course.id}')">+ Buchen</button>`
+            }
+          </div>
+        </div>
+      </div>`
+    }
+  }
+  listEl.innerHTML = html
+}
+
+function startSelect(courseId) {
+  selections[courseId] = { frequency: 'once' }
+  renderSchedule()
+}
+function cancelSelect(courseId) {
+  delete selections[courseId]
+  renderSchedule()
+}
+function setFreq(courseId, freq) {
+  if (selections[courseId]) selections[courseId].frequency = freq
+}
+
+async function addBooking(courseId, courseName, weekday, time, date) {
+  const sel = selections[courseId]
+  if (!sel) return
+
+  const body = { courseName, weekday, time, frequency: sel.frequency }
+  if (sel.frequency === 'once') body.date = date
+
+  // Check duplicate
+  const already = bookings.some(b =>
+    b.course_name === courseName && b.weekday === weekday && b.time === time &&
+    (b.frequency === 'weekly' || b.date === date)
+  )
+  if (already) { cancelSelect(courseId); return }
+
+  await fetch('/api/bookings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  delete selections[courseId]
+  await loadBookings()
+  renderSchedule()
+}
+
+// ── Bookings ──────────────────────────────────────────────────────────────────
+
+async function loadBookings() {
+  const res = await fetch('/api/bookings')
+  const data = await res.json()
+  bookings = data.bookings || []
+  document.getElementById('booking-count').textContent = bookings.filter(b => b.enabled).length
+  renderBookings()
+}
+
+function renderBookings() {
+  const el = document.getElementById('bookings-list')
+  if (!bookings.length) {
+    el.innerHTML = '<div class="empty">Noch keine Auto-Buchungen.<p>Geh zum Stundenplan und wähle einen Kurs.</p></div>'
+    return
+  }
+
+  const weekly = bookings.filter(b => b.frequency === 'weekly')
+  const once = bookings.filter(b => b.frequency === 'once')
+  let html = ''
+
+  if (weekly.length) {
+    html += '<div class="section-header">Wöchentlich · Wiederkehrend</div>'
+    for (const b of weekly) html += bookingCard(b)
+  }
+  if (once.length) {
+    html += '<div class="section-header" style="margin-top:24px">Einmalige Buchungen</div>'
+    for (const b of once) html += bookingCard(b)
+  }
+
+  html += `<div class="info-box">⚡ Der Bot prüft alle 5 Minuten und bucht automatisch wenn das 48h-Fenster öffnet. Status siehst du hier in Echtzeit.</div>`
+  el.innerHTML = html
+}
+
+function bookingCard(b) {
+  const DAYS = { monday:'Montag', tuesday:'Dienstag', wednesday:'Mittwoch', thursday:'Donnerstag', friday:'Freitag', saturday:'Samstag', sunday:'Sonntag' }
+  const statusColor = !b.last_result ? 'var(--muted)' : b.last_result.startsWith('✅') ? 'var(--accent2)' : b.last_result.startsWith('⏳') ? 'var(--warn)' : 'var(--danger)'
+  const statusText = b.last_result ? b.last_result.replace(/^[✅❌⏳]\s*/, '') : 'Noch kein Versuch'
+
+  return `<div class="card" style="opacity:${b.enabled ? 1 : .45}">
+    <div class="card-row">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span class="card-name">${b.course_name}</span>
+          <span class="tag ${b.frequency === 'weekly' ? 'tag-weekly' : 'tag-once'}">${b.frequency === 'weekly' ? '↻ Wöchentlich' : '📅 Einmalig'}</span>
+        </div>
+        <div class="card-sub">${b.frequency === 'weekly' ? (DAYS[b.weekday] || b.weekday) + ', ' + b.time + ' Uhr' : b.date + ' · ' + b.time + ' Uhr'}</div>
+        <div style="margin-top:6px;font-size:11px;display:flex;align-items:center">
+          <span class="status-dot" style="background:${statusColor}"></span>
+          <span style="color:${statusColor}">${statusText}</span>
+        </div>
+        ${b.last_attempt ? `<div style="color:var(--muted);font-size:11px;margin-top:2px">Letzter Versuch: ${new Date(b.last_attempt).toLocaleString('de-DE', { timeZone:'Europe/Berlin' })}</div>` : ''}
+      </div>
+      <div class="card-actions">
+        <button class="toggle ${b.enabled ? 'on' : ''}" onclick="toggleBooking('${b.id}', ${b.enabled})">
+          <span class="toggle-dot"></span>
+        </button>
+        <button class="btn-delete" onclick="deleteBooking('${b.id}')">×</button>
+      </div>
+    </div>
+  </div>`
+}
+
+async function toggleBooking(id, currentEnabled) {
+  await fetch(`/api/bookings/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: !currentEnabled }),
+  })
+  await loadBookings()
+}
+
+async function deleteBooking(id) {
+  await fetch(`/api/bookings/${id}`, { method: 'DELETE' })
+  await loadBookings()
+  renderSchedule()
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-page').style.display !== 'none') login()
+})
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+checkAuth()
+</script>
+</body>
+</html>

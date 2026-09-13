@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: gym-booker
+    env: node
+    buildCommand: npm install && npx playwright install chromium --with-deps
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: /opt/render/project/data/gym-booker.db
+    disk:
+      name: data
+      mountPath: /opt/render/project/data
+      sizeGB: 1
