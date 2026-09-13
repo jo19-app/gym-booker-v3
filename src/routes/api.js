@@ -124,15 +124,23 @@ router.get('/debug', requireAuth, async (req, res) => {
   const now = new Date()
   const from = now.toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
   const to = new Date(now.getTime() + 8 * 86400000).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
-  const res = await fetch(
-    `https://member.peoplesfitness.de/nox/v1/studios/cGVvcGxlcy1neW06MTI1MzQxMzk0MA==/courses?from=${from}&to=${to}`,
-    {
+  
+  const urls = [
+    `https://member.peoplesfitness.de/nox/v1/calendar/courses?facilityId=1253413940&startDate=${from}&endDate=${to}`,
+    `https://member.peoplesfitness.de/nox/v1/bookableitems?facilityId=1253413940&from=${from}&to=${to}`,
+    `https://member.peoplesfitness.de/v1/studios/1253413940/courses?from=${from}&to=${to}`,
+  ]
+  
+  const results = {}
+  for (const url of urls) {
+    const res = await fetch(url, {
       headers: { 'X-Tenant': 'peoples-gym', 'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C', 'X-Nox-Client-Type': 'WEB' },
       credentials: 'include',
-    }
-  )
-  const text = await res.text()
-  return { status: res.status, body: text.slice(0, 1000) }
+    })
+    const text = await res.text()
+    results[url.split('?')[0]] = { status: res.status, body: text.slice(0, 200) }
+  }
+  return results
 })
 
   await browser.close()
