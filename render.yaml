@@ -9,8 +9,8 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: DB_PATH
-        value: /opt/render/project/data/gym-booker.db
+      - key: DATA_DIR
+        value: /opt/render/project/data
     disk:
       name: data
       mountPath: /opt/render/project/data
