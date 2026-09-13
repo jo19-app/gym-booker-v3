@@ -98,5 +98,38 @@ router.get('/me', requireAuth, (req, res) => {
   const user = getUser(req.user.email)
   res.json(user ? { id: user.id, email: user.email } : {})
 })
+router.get('/debug', requireAuth, async (req, res) => {
+  const user = getUser(req.user.email)
+  if (!user) return res.status(404).json({ error: 'User not found' })
 
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  const context = await browser.newContext()
+  const page = await context.newPage()
+
+  await page.goto('https://member.peoplesfitness.de/studio/cGVvcGxlcy1neW06MTI1MzQxMzk0MA%3D%3D/course?v=1', { waitUntil: 'domcontentloaded', timeout: 30000 })
+  await page.waitForTimeout(2000)
+
+  const basic = Buffer.from(`${user.email}:${user.password}`).toString('base64')
+  await page.evaluate(async ({ basic, email, password }) => {
+    await fetch('https://member.peoplesfitness.de/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${basic}`, 'X-Tenant': 'peoples-gym', 'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C', 'X-Nox-Client-Type': 'WEB' },
+      credentials: 'include',
+      body: JSON.stringify({ username: email, password }),
+    })
+  }, { basic, email: user.email, password: user.password })
+
+  const result = await page.evaluate(async () => {
+    const res = await fetch('https://member.peoplesfitness.de/nox/public/v3/facility-booking/categories?facilityId=1253413940', {
+      headers: { 'X-Tenant': 'peoples-gym', 'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C', 'X-Nox-Client-Type': 'WEB' },
+      credentials: 'include',
+    })
+    const text = await res.text()
+    return { status: res.status, body: text.slice(0, 500) }
+  })
+
+  await browser.close()
+  res.json(result)
+})
 export default router
