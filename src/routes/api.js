@@ -126,9 +126,10 @@ router.get('/debug', requireAuth, async (req, res) => {
   const to = new Date(now.getTime() + 8 * 86400000).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
   
   const urls = [
-    `https://member.peoplesfitness.de/nox/v1/calendar/courses?facilityId=1253413940&startDate=${from}&endDate=${to}`,
-    `https://member.peoplesfitness.de/nox/v1/bookableitems?facilityId=1253413940&from=${from}&to=${to}`,
-    `https://member.peoplesfitness.de/v1/studios/1253413940/courses?from=${from}&to=${to}`,
+    `https://member.peoplesfitness.de/nox/public/v3/facility-booking/slots?facilityId=1253413940&from=${from}&to=${to}`,
+    `https://member.peoplesfitness.de/nox/v1/calendar/week?facilityId=1253413940&startDate=${from}`,
+    `https://member.peoplesfitness.de/nox/public/v1/studios/1253413940/courses?from=${from}&to=${to}`,
+    `https://member.peoplesfitness.de/nox/v1/facilities/1253413940/courses?from=${from}&to=${to}`,
   ]
   
   const results = {}
@@ -138,7 +139,7 @@ router.get('/debug', requireAuth, async (req, res) => {
       credentials: 'include',
     })
     const text = await res.text()
-    results[url.split('?')[0]] = { status: res.status, body: text.slice(0, 200) }
+    results[url.split('?')[0]] = { status: res.status, body: text.slice(0, 300) }
   }
   return results
 })
