@@ -52,13 +52,34 @@ export async function fetchSchedule(email, password) {
   const { browser, page } = await getPage(email, password)
 
   try {
-    const courses = await page.evaluate(async ({ base, headers }) => {
-      // Get categories (course types)
-      const catRes = await fetch(`${base}/nox/public/v3/facility-booking/categories?facilityId=1253413940`, {
-        headers, credentials: 'include'
-      })
-      const categories = await catRes.json()
-      if (!Array.isArray(categories)) return []
+    const courses = await page.evaluate(async ({ base, headers, studioSlug }) => {
+  // Fetch the weekly course schedule directly
+  const now = new Date()
+  const from = now.toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
+  const to = new Date(now.getTime() + 8 * 86400000).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
+
+  const res = await fetch(
+    `${base}/nox/v1/studios/${studioSlug}/courses?from=${from}&to=${to}`,
+    { headers, credentials: 'include' }
+  )
+  const data = await res.json()
+  const list = Array.isArray(data) ? data : (data.courses || data.data || [])
+
+  return list.map(c => ({
+    id: String(c.id),
+    optionId: String(c.benefitId || c.id),
+    name: c.name || '',
+    startTime: c.startDateTime || c.startTime || '',
+    endTime: c.endDateTime || c.endTime || '',
+    trainer: c.employees?.[0]?.displayedName || c.trainer || '',
+    spotsAvailable: c.freeSlots ?? Math.max(0, (c.maxParticipants || 0) - (c.bookedParticipants || 0)),
+    spotsTotal: c.maxParticipants || 0,
+    bookable: c.bookable ?? false,
+    alreadyBooked: c.alreadyBooked ?? false,
+    waitlistAvailable: c.waitingListActive ?? false,
+    earliestBookingDateTime: c.earliestBookingDateTime || null,
+  }))
+}, { base: BASE, headers: HEADERS, studioSlug: STUDIO_SLUG })
 
       const results = []
       for (const cat of categories) {
