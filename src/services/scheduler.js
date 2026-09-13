@@ -1,5 +1,5 @@
 import cron from 'node-cron'
-import db from '../db/database.js'
+import { getAllUsers, getUserBookings, updateBooking } from '../db/database.js'
 import { findAndBook } from './gym.js'
 
 const TIMEZONE = 'Europe/Berlin'
@@ -25,10 +25,9 @@ function isWindowOpen(weekday, time, frequency, date, now = new Date()) {
   for (let d = 0; d <= 7; d++) {
     const candidate = new Date(now.getTime() + d * 86400000)
     const berlinDate = candidate.toLocaleDateString('sv', { timeZone: TIMEZONE })
-    const [y, mo, day] = berlinDate.split('-').map(Number)
     const dow = new Date(`${berlinDate}T12:00:00`).getDay()
     if (dow !== targetDay) continue
-
+    const [y, mo, day] = berlinDate.split('-').map(Number)
     const offset = getBerlinOffset(candidate)
     const classUTC = Date.UTC(y, mo-1, day, hh - offset, mm)
     const opensAt = classUTC - BOOKING_WINDOW_HOURS * 3600000
@@ -44,52 +43,30 @@ function getBerlinOffset(date) {
 }
 
 export function startScheduler() {
-  // Run every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
     console.log(`[Cron] Running at ${new Date().toISOString()}`)
     const now = new Date()
-
-    const users = db.prepare('SELECT * FROM users').all()
+    const users = getAllUsers()
 
     for (const user of users) {
-      const bookings = db.prepare(
-        'SELECT * FROM bookings WHERE user_id = ? AND enabled = 1'
-      ).all(user.id)
-
+      const bookings = getUserBookings(user.id).filter(b => b.enabled)
       for (const booking of bookings) {
         if (!isWindowOpen(booking.weekday, booking.time, booking.frequency, booking.date, now)) continue
-
         console.log(`[Cron] Booking "${booking.course_name}" for ${user.email}`)
-
         try {
-          const result = await findAndBook(
-            user.email,
-            user.password,
-            booking.course_name,
-            booking.weekday,
-            booking.time,
-            booking.date
-          )
-
-          db.prepare(`
-            UPDATE bookings SET
-              last_attempt = datetime('now'),
-              last_result = ?,
-              last_booked = CASE WHEN ? THEN datetime('now') ELSE last_booked END,
-              enabled = CASE WHEN ? AND frequency = 'once' THEN 0 ELSE enabled END
-            WHERE id = ?
-          `).run(result.message, result.success ? 1 : 0, result.success ? 1 : 0, booking.id)
-
+          const result = await findAndBook(user.email, user.password, booking.course_name, booking.weekday, booking.time, booking.date)
+          updateBooking(booking.id, {
+            last_attempt: new Date().toISOString(),
+            last_result: result.message,
+            ...(result.success && { last_booked: new Date().toISOString() }),
+            ...(result.success && booking.frequency === 'once' && { enabled: false }),
+          })
           console.log(`[Cron] ${result.message}`)
         } catch (err) {
-          const msg = `❌ Error: ${err.message}`
-          db.prepare(`UPDATE bookings SET last_attempt = datetime('now'), last_result = ? WHERE id = ?`)
-            .run(msg, booking.id)
-          console.error(`[Cron] ${msg}`)
+          updateBooking(booking.id, { last_attempt: new Date().toISOString(), last_result: `❌ ${err.message}` })
         }
       }
     }
   })
-
-  console.log('[Cron] Scheduler started (every 5 minutes)')
+  console.log('[Cron] Scheduler started')
 }
