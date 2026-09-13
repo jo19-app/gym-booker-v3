@@ -2,7 +2,7 @@ services:
   - type: web
     name: gym-booker
     env: node
-    buildCommand: yarn && yarn playwright install chromium --with-deps
+    buildCommand: yarn && yarn playwright install chromium
     startCommand: npm start
     envVars:
       - key: NODE_ENV
