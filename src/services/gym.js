@@ -1,10 +1,11 @@
 process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/project/src/.playwright'
+
 import { chromium } from 'playwright'
 
 const BASE = 'https://member.peoplesfitness.de'
 const STUDIO_SLUG = 'cGVvcGxlcy1neW06MTI1MzQxMzk0MA%3D%3D'
 
-const NOX_HEADERS = {
+const HEADERS = {
   'X-Tenant': 'peoples-gym',
   'X-Public-Facility-Group': 'BRANDENPEOPLESFITNESSCLUBS-9668881C08B84496B662DD3EB26D420C',
   'X-Nox-Client-Type': 'WEB',
@@ -13,96 +14,79 @@ const NOX_HEADERS = {
   'Content-Type': 'application/json',
 }
 
-// Get a browser page with session cookies set
-async function getAuthenticatedPage(email, password) {
+async function getPage(email, password) {
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   })
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
-  })
-
+  const context = await browser.newContext()
   const page = await context.newPage()
 
-  // Set extra headers
-  await page.setExtraHTTPHeaders(NOX_HEADERS)
+  // Navigate to the site first so cookies are scoped correctly
+  await page.goto(`${BASE}/studio/${STUDIO_SLUG}/course?v=1`, {
+    waitUntil: 'domcontentloaded', timeout: 30000
+  })
+  await page.waitForTimeout(2000)
 
-  // Navigate to login page
-  await page.goto(`${BASE}/studio/${STUDIO_SLUG}/course?v=1`, { waitUntil: 'networkidle' })
-
-  // Login via API call within the browser context (so cookies are set)
-  const loginResult = await page.evaluate(async ({ email, password, base, headers }) => {
+  // Login
+  const basic = Buffer.from(`${email}:${password}`).toString('base64')
+  const loginOk = await page.evaluate(async ({ base, headers, basic, email, password }) => {
     const res = await fetch(`${base}/login`, {
       method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Authorization': `Basic ${basic}` },
       credentials: 'include',
       body: JSON.stringify({ username: email, password }),
     })
-    return { ok: res.ok, status: res.status }
-  }, { email, password, base: BASE, headers: NOX_HEADERS })
+    return res.ok
+  }, { base: BASE, headers: HEADERS, basic, email, password })
 
-  if (!loginResult.ok) {
+  if (!loginOk) {
     await browser.close()
-    throw new Error(`Login failed (${loginResult.status})`)
+    throw new Error('Login failed')
   }
 
-  return { browser, context, page }
+  return { browser, page }
 }
 
-// Fetch course schedule for the next 8 days
 export async function fetchSchedule(email, password) {
-  const { browser, page } = await getAuthenticatedPage(email, password)
+  const { browser, page } = await getPage(email, password)
 
   try {
-    const now = new Date()
-    const from = now.toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
-    const to = new Date(now.getTime() + 8 * 86400000).toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
-
-    // Fetch courses using the correct API endpoint
-    const courses = await page.evaluate(async ({ base, headers, from, to }) => {
-      // First get the list of bookable courses
-      const res = await fetch(`${base}/nox/public/v3/facility-booking/categories?facilityId=1253413940`, {
-        headers,
-        credentials: 'include',
+    const courses = await page.evaluate(async ({ base, headers }) => {
+      // Get categories (course types)
+      const catRes = await fetch(`${base}/nox/public/v3/facility-booking/categories?facilityId=1253413940`, {
+        headers, credentials: 'include'
       })
-      const categories = await res.json()
+      const categories = await catRes.json()
+      if (!Array.isArray(categories)) return []
 
-      // Get individual course slots
-      const allCourses = []
-      if (categories && Array.isArray(categories)) {
-        for (const cat of categories.slice(0, 20)) {
-          if (cat.id) {
-            const courseRes = await fetch(`${base}/nox/v1/bookableitems/course/${cat.id}`, {
-              headers,
-              credentials: 'include',
-            })
-            if (courseRes.ok) {
-              const course = await courseRes.json()
-              if (course.slots) {
-                for (const slot of course.slots) {
-                  allCourses.push({
-                    id: course.id,
-                    name: course.name,
-                    startTime: slot.startDateTime,
-                    endTime: slot.endDateTime,
-                    trainer: slot.employees?.[0]?.displayedName,
-                    spotsAvailable: course.maxParticipants - course.bookedParticipants,
-                    spotsTotal: course.maxParticipants,
-                    bookable: slot.bookable,
-                    alreadyBooked: slot.alreadyBooked,
-                    waitlistAvailable: course.waitingListActive,
-                    earliestBookingDateTime: slot.earliestBookingDateTime,
-                  })
-                }
-              }
-            }
-          }
+      const results = []
+      for (const cat of categories) {
+        if (!cat.id) continue
+        const r = await fetch(`${base}/nox/v1/bookableitems/course/${cat.id}`, {
+          headers, credentials: 'include'
+        })
+        if (!r.ok) continue
+        const course = await r.json()
+        for (const slot of course.slots || []) {
+          results.push({
+            id: String(cat.id),
+            optionId: String(cat.benefitId || ''),
+            name: course.name,
+            startTime: slot.startDateTime,
+            endTime: slot.endDateTime,
+            trainer: slot.employees?.[0]?.displayedName || '',
+            spotsAvailable: Math.max(0, (course.maxParticipants || 0) - (course.bookedParticipants || 0)),
+            spotsTotal: course.maxParticipants || 0,
+            bookable: slot.bookable || false,
+            alreadyBooked: slot.alreadyBooked || false,
+            waitlistAvailable: course.waitingListActive || false,
+            earliestBookingDateTime: slot.earliestBookingDateTime || null,
+          })
         }
       }
-      return allCourses
-    }, { base: BASE, headers: NOX_HEADERS, from, to })
+      return results
+    }, { base: BASE, headers: HEADERS })
 
     return courses
   } finally {
@@ -110,68 +94,35 @@ export async function fetchSchedule(email, password) {
   }
 }
 
-// Book a specific course by ID
-export async function bookCourse(email, password, courseId) {
-  const { browser, page } = await getAuthenticatedPage(email, password)
-
-  try {
-    const result = await page.evaluate(async ({ base, headers, courseId }) => {
-      const res = await fetch(`${base}/nox/v1/bookableitems/course/${courseId}/book`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
-      })
-      const text = await res.text()
-      return { ok: res.ok, status: res.status, body: text }
-    }, { base: BASE, headers: NOX_HEADERS, courseId })
-
-    if (result.ok || result.status === 200 || result.status === 201) {
-      return { success: true, message: 'Booking confirmed!' }
-    }
-
-    // Check if already booked (500 with internal error often means already booked)
-    if (result.status === 500) {
-      return { success: false, message: 'Already booked or server error', alreadyBooked: true }
-    }
-
-    return { success: false, message: `Booking failed (${result.status}): ${result.body}` }
-  } finally {
-    await browser.close()
-  }
-}
-
-// Find and book a course matching name + weekday + time
 export async function findAndBook(email, password, courseName, weekday, time, date) {
-  const { browser, page } = await getAuthenticatedPage(email, password)
+  const { browser, page } = await getPage(email, password)
 
   try {
-    // Get all course IDs from categories
-    const courseIds = await page.evaluate(async ({ base, headers }) => {
+    // Get all courses
+    const categories = await page.evaluate(async ({ base, headers }) => {
       const res = await fetch(`${base}/nox/public/v3/facility-booking/categories?facilityId=1253413940`, {
-        headers,
-        credentials: 'include',
+        headers, credentials: 'include'
       })
-      const data = await res.json()
-      return Array.isArray(data) ? data.map(c => c.id).filter(Boolean) : []
-    }, { base: BASE, headers: NOX_HEADERS })
+      return res.json()
+    }, { base: BASE, headers: HEADERS })
 
-    // Find the matching course slot
-    let matchedCourseId = null
-    for (const id of courseIds) {
+    if (!Array.isArray(categories)) throw new Error('Could not fetch categories')
+
+    // Find matching course
+    let matchedId = null
+    let matchedOptionId = null
+
+    for (const cat of categories) {
+      if (!cat.id) continue
       const course = await page.evaluate(async ({ base, headers, id }) => {
         const res = await fetch(`${base}/nox/v1/bookableitems/course/${id}`, {
-          headers,
-          credentials: 'include',
+          headers, credentials: 'include'
         })
-        if (!res.ok) return null
-        return res.json()
-      }, { base: BASE, headers: NOX_HEADERS, id })
+        return res.ok ? res.json() : null
+      }, { base: BASE, headers: HEADERS, id: cat.id })
 
       if (!course) continue
-
-      const nameMatch = course.name?.toLowerCase().includes(courseName.toLowerCase())
-      if (!nameMatch) continue
+      if (!course.name?.toLowerCase().includes(courseName.toLowerCase())) continue
 
       for (const slot of course.slots || []) {
         const slotDate = new Date(slot.startDateTime)
@@ -179,39 +130,45 @@ export async function findAndBook(email, password, courseName, weekday, time, da
         const slotTime = slotDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
         const slotDateStr = slotDate.toLocaleDateString('sv', { timeZone: 'Europe/Berlin' })
 
-        const dayMatch = slotDay === weekday.toLowerCase()
-        const timeMatch = slotTime === time
-        const dateMatch = !date || slotDateStr === date
+        if (slotDay !== weekday?.toLowerCase()) continue
+        if (slotTime !== time) continue
+        if (date && slotDateStr !== date) continue
+        if (!slot.bookable || slot.alreadyBooked) continue
 
-        if (dayMatch && timeMatch && dateMatch && slot.bookable && !slot.alreadyBooked) {
-          matchedCourseId = id
-          break
-        }
+        matchedId = String(cat.id)
+        matchedOptionId = String(cat.benefitId || cat.id)
+        break
       }
-      if (matchedCourseId) break
+      if (matchedId) break
     }
 
-    if (!matchedCourseId) {
-      return { success: false, message: `No bookable slot found for "${courseName}" on ${weekday} at ${time}` }
+    if (!matchedId) {
+      return { success: false, message: `Kein buchbarer Kurs gefunden für "${courseName}" am ${weekday} um ${time}` }
     }
 
-    // Book it
-    const result = await page.evaluate(async ({ base, headers, courseId }) => {
-      const res = await fetch(`${base}/nox/v1/bookableitems/course/${courseId}/book`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
-      })
-      const text = await res.text()
-      return { ok: res.ok, status: res.status, body: text }
-    }, { base: BASE, headers: NOX_HEADERS, courseId: matchedCourseId })
+    // Navigate to booking summary page and click "Jetzt buchen"
+    await page.goto(
+      `${BASE}/studio/${STUDIO_SLUG}/booking/course/${matchedId}/option/${matchedOptionId}/summary?v=1`,
+      { waitUntil: 'networkidle', timeout: 30000 }
+    )
 
-    if (result.ok || result.status === 200 || result.status === 201) {
-      return { success: true, message: `✅ Booked "${courseName}"!` }
+    // Click the "Jetzt buchen" button
+    const btn = await page.locator('button:has-text("Jetzt buchen"), button:has-text("Buchen")').first()
+    if (!btn) return { success: false, message: 'Buchungsbutton nicht gefunden' }
+
+    await btn.click()
+    await page.waitForTimeout(3000)
+
+    const success = await page.evaluate(() => {
+      return document.body.innerText.includes('gebucht') ||
+             document.body.innerText.includes('erfolgreich') ||
+             document.body.innerText.includes('Terminbuchungen')
+    })
+
+    return {
+      success,
+      message: success ? `✅ "${courseName}" erfolgreich gebucht!` : `❌ Buchung fehlgeschlagen`
     }
-
-    return { success: false, message: `Booking failed (${result.status})` }
 
   } finally {
     await browser.close()
