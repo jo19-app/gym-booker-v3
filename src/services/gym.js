@@ -1,3 +1,4 @@
+process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/project/src/.playwright'
 import { chromium } from 'playwright'
 
 const BASE = 'https://member.peoplesfitness.de'
