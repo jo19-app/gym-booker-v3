@@ -15,7 +15,8 @@ router.post('/auth/login', async (req, res) => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] })
     const context = await browser.newContext()
     const page = await context.newPage()
-    await page.goto('https://member.peoplesfitness.de/studio/cGVvcGxlcy1neW06MTI1MzQxMzk0MA%3D%3D/course?v=1', { waitUntil: 'domcontentloaded', timeout: 15000 })
+    await page.goto('https://member.peoplesfitness.de/studio/cGVvcGxlcy1neW06MTI1MzQxMzk0MA%3D%3D/course?v=1', { waitUntil: 'domcontentloaded', timeout: 30000 })
+await page.waitForTimeout(3000)
 
     const loginResult = await page.evaluate(async ({ email, password }) => {
       const res = await fetch('https://member.peoplesfitness.de/login', {
@@ -24,12 +25,13 @@ router.post('/auth/login', async (req, res) => {
         credentials: 'include',
         body: JSON.stringify({ username: email, password }),
       })
-      return { ok: res.ok, status: res.status }
+      const body = await res.text()
+return { ok: res.ok, status: res.status, body }
     }, { email, password })
 
     await browser.close()
 
-    if (!loginResult.ok) return res.status(401).json({ error: 'Email oder Passwort falsch' })
+   if (!loginResult.ok) return res.status(401).json({ error: `Login fehlgeschlagen (${loginResult.status}): ${loginResult.body}` })
 
     const userId = email.toLowerCase().replace(/[^a-z0-9]/g, '_')
     upsertUser({ id: userId, email, password, createdAt: new Date().toISOString() })
